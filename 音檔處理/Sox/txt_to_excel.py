@@ -11,6 +11,7 @@ import xlwt
 import openpyxl
 from openpyxl import load_workbook,Workbook
 
+
 #處理txt檔(用dict存值，平均)
 def txt_to_dict(f,dic,filename):
     #累加(用來平均用)
@@ -41,8 +42,7 @@ def txt_to_dict(f,dic,filename):
             dic[a] = dic[a]+c
             num += 1
     
-    #全部值
-    dict_to_excel(f,dic,filename)
+    return dic
 
 #各檔案 按照頻率列出全部的振幅
 def savesameFreq(f,dic,filename):
@@ -156,20 +156,29 @@ def dict_to_excel_MaxTen(f,dic,filename):
     print(str(filename[0:-4])+' \n各頻率資料已儲存進:MaxTen_EachSegment.xlsx\n')
     
 #匯出成excel檔案(all)
-def dict_to_excel(f,dic,filename):
-    #maxinterval:取振福最大值用來正規畫
-    tmpdic = {} 
+def dict_to_excel(f,dic,filename,store_position,store_xlsx):
+
+    # 頻率取0~700
+    tmpdic = {}
+    for j in dic :
+        if j > 700:
+            break
+        else:
+            tmpdic[j] = dic[j]
+    # 頻率取190~550
+    """
     for j in dic:
         if j < 190:
             continue
         if j > 550:
             break
         tmpdic[j] = dic[j]
-    print(tmpdic)
+    """
     
     tmpfreq = max(tmpdic,key=tmpdic.get)
+    # maxinterval:取振福最大值用來正規畫
     maxinterval = tmpdic[tmpfreq]
-    print(maxinterval)
+
     row,column = 1,3
     
     #頻率間隔數值(EX:interval=5 or interval=10)
@@ -178,12 +187,8 @@ def dict_to_excel(f,dic,filename):
             freqinterval = tmp
             break
     
-    savename = 'C:/Users/3c/Desktop/專題東西/music/sox_interval_'+str(freqinterval)+'@@.xlsx'
-    if not os.path.exists(savename):
-        wb = Workbook()
-        wb.save(savename)
-        print(savename+"set up")
-    print('freq interval :'+str(freqinterval))
+    savename = store_xlsx
+
     xls=load_workbook(savename)
     ws = xls.active
     tmp = 'A'+str(row)
@@ -204,11 +209,12 @@ def dict_to_excel(f,dic,filename):
     freqrow,freqcolumn = 1,3
     #頻率控制在700以下
     for freq in dic:
-        
+        #頻率取0~700
         if freq > 700:
             break
         ws.cell(freqrow,freqcolumn,value=freq)
         freqcolumn += 1
+        # 頻率取190~550
         """
         if freq >=190 and freq <= 550:
             ws.cell(freqrow,freqcolumn,value=freq)
@@ -218,8 +224,6 @@ def dict_to_excel(f,dic,filename):
         """
     
     for i in dic:
-        
-        
         #頻率:700以前塞值
         if i >700:
             break
@@ -241,12 +245,25 @@ def dict_to_excel(f,dic,filename):
         """
         
     row += 1
-    
-    #print(savename)
-    xls.save(savename) 
-    print(str(filename[0:-4])+' \n資料已儲存進:sox_interval_'+str(freqinterval)+'.xlsx\n')
-# 按照不同要儲存的狀況去取得不同的xlsx來確定此刻音檔資料是否已經使用過
+    xls.save(savename)
 
+# 確定此刻音檔資料是否已經使用過
+def check(store_xlsx):
+    checklis = []
+    if not os.path.isfile(store_xlsx): # xlsx尚未建立過 -> 不需檢查 
+        xlsx = openpyxl.Workbook()
+        sheet = xlsx.get_sheet_by_name('Sheet')
+        sheet.cell(row=1,column=1,value='Name')
+        sheet.cell(row=1,column=2,value='Hive')
+        xlsx.save(store_xlsx)
+    else:
+        xlsx=load_workbook(store_xlsx)
+        sheet = xlsx.active
+        for row in sheet.rows:
+            checklis.append(row[0].value)
+    return checklis
+
+    
 def main():
     
     file_position = os.getcwd() + os.sep +  'sound_data' + os.sep # 要處理的音檔資料位置
@@ -254,9 +271,16 @@ def main():
     
     store_position = os.getcwd() + os.sep
     store_xlsx = store_position + 'sox.xlsx'
+    
+    # 從之前的csv取得data 確定此刻資料是否使用過
+    checklis = check(store_xlsx) # 還沒放進去判斷 
+    
     # 依序取出作處理
     for filename in file_List:
-        
+        # 判斷是否使用過
+        if filename[0:-4] in checklis:
+            print(filename + ' has been used')
+            continue
         print('檔案名稱:'+str(filename))
         if filename.endswith(".txt"):
             openfile = os.getcwd() + os.sep + 'sound_data' + os.sep + filename
@@ -266,7 +290,8 @@ def main():
             #單一檔案 按照頻率列出全部的振幅
                 
             txt_to_dict(f,dic,filename)
-                
+            #全部值
+            dict_to_excel(f,dic,filename,store_position,store_xlsx)
             #savesameFreq(f,dic,filename)
                 
             #segmentstat(f,dic,filename)

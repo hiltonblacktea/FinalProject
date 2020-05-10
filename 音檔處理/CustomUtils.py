@@ -11,6 +11,7 @@ from sklearn import preprocessing,svm
 from info import i, printb, printr, printp, print
 from numpy import *
 import openpyxl
+from openpyxl import load_workbook
 import pandas as pd
 import sys
 import glob
@@ -79,8 +80,7 @@ def load_audioFiles_saves_segments(audiofilenames_list, path_audioFiles,path_sav
                 
                 # MAKE BLOCK OF THE SAME SIZE:
                 if block.shape[0] < block_size*sr:   
-                    block = uniform_block_size(block, block_size*sr, 'repeat')
-                    print('-----Uniformizing block length of segment'+str(block_id)  ) 
+                    pass
 
                         
             
@@ -149,7 +149,7 @@ def get_features_from_samples(path_audio_samples, sample_ids, raw_feature, norma
     ## 提取特徵
     
     dic = {}
-   
+    
     for sample in sample_ids:
         
         # 原始特徵提取(MFCC序列)
@@ -180,60 +180,72 @@ def get_features_from_samples(path_audio_samples, sample_ids, raw_feature, norma
         tmpdataname = sample[0:5]
         
         dic[sample] = list(feature_map)
-    if os.path.isfile('Name_Label_MFCCfeature.xlsx'):
+    
+    StoreExcel(dic)
+    """
+    # 取出之前data 避免重複處理
+    checklis = []
+    
+    if  os.path.isfile('./MFCC/Name_Label_MFCCfeature.xlsx'):
         print("file existed ")
         try:
-            df = pd.read_excel('Name_Label_MFCCfeature.xlsx',delimiter="\t")
-            tar = df.iloc[:,0]
-            tarlist = []
-            for i in tar:
-                if i in tarlist:
+            df = pd.read_excel('./MFCC/Name_Label_MFCCfeature.xlsx',delimiter="\t")
+            # 取出第一行(Name)
+            check = df.iloc[:,0]
+            for i in check:
+                if i in checklis:
                     continue
                 else:
-                    tarlist.append(i)
+                    checklis.append(i)
         except Exception as e:
             print("An error found but ignored",e)
-        
     #以下是儲存進excel
     xls=openpyxl.Workbook()
     sheet = xls.get_sheet_by_name('Sheet') #生成excel的方法
     x,y = 1,1
-    with open(path_audio_samples+'/'+'state_labels.csv') as csvfile:
-        #讀取CSV檔案內容
-        reader = csv.reader(csvfile)
-        #取第一列資訊欄
-        for i in reader:
-            firstrow = i 
+    
+    sheet.cell(row=x,column=y,value='Name')
+    sheet.cell(row=x,column=y+1,value='Labal')
+    
+    
+    x ,y = 2 , 1
+    
+    #判斷全新一列 塞值
+    tmp = 'A'+str(x)
+    while True:
+        if sheet[tmp].value != None:
+            x += 1
+            tmp = 'A'+str(x)
+            #print(ws[tmp].value)
+        else:
             break
-        sheet.cell(row=x,column=y,value=firstrow[0])
-        sheet.cell(row=x,column=y+1,value=firstrow[1])
+    
+    for name in dic :
+        if name[0:-4] in checklis :
+            print('this file has been used , Pass!')
+            continue # 此檔案已經存過 略過
         
-        x , y = 2 , 1
-        #以迴圈列出每一列
-        for rows in reader:
-            #取出符合現在對應檔案的資訊
-            firstdata = rows[0]
-            #print(firstdata)
-            if firstdata[0:5] == tmpdataname :
-            #每一列一個一個取data
-                for z in rows:
-                    sheet.cell(row=x,column=y,value=z)
-                    y += 1
-                x += 1
-                y = 1
-    
-    
-    x,y = 2,3
-    for i in dic: 
-        tmp = dic[i]
-        for tmpj in tmp:
-            
-            sheet.cell(row=x,column=y,value=tmpj)
-            y += 1
-    #excel換行
+        currentname = name[0:-4]
+        
+        # 判斷狀況
+        if 'NO' in currentname  or 'Missing' in currentname:
+            currentlabel = 'Missing Queen'
+        else:
+            currentlabel = 'Active'
+        
+        # 存進excel格子
+        # 存 名稱 & 狀態
+        y = 1
+        sheet.cell(row=x,column=y,value=currentname)
+        sheet.cell(row=x,column=y+1,value=currentlabel)
         y = 3
+        # 存 feature
+        
+        for feature in dic[name]:
+            sheet.cell(row=x,column=y,value=feature)
+            y += 1
         x += 1
-    
+
     ## MFCC特徵數值
     x , y =  1,3
     for count in range(1,121):
@@ -244,7 +256,7 @@ def get_features_from_samples(path_audio_samples, sample_ids, raw_feature, norma
     Excelname = 'Name_Label_MFCCfeature.xlsx'
     xls.save('./MFCC/' + Excelname) 
     print(Excelname+" have Done")
-
+    """
     
     
 # MFCC原始序列提取
@@ -311,4 +323,80 @@ def getmusicposition():
 def fileisexitornot(path_save_audio_labels):
     file = [os.path.basename(x) for x in glob.glob(path_save_audio_labels+'*'+'.wav')] 
     return file
+
+def StoreExcel(dic):
+    checklis = []
     
+    if  os.path.isfile('./MFCC/Name_Label_MFCCfeature.xlsx'):
+        xls=load_workbook('./MFCC/Name_Label_MFCCfeature.xlsx')
+        print("file existed ")
+        try:
+            df = pd.read_excel('./MFCC/Name_Label_MFCCfeature.xlsx',delimiter="\t")
+            # 取出第一行(Name)
+            check = df.iloc[:,0]
+            for i in check:
+                if i in checklis:
+                    continue
+                else:
+                    checklis.append(i)
+        except Exception as e:
+            print("An error found but ignored",e)
+    else:
+        xls=openpyxl.Workbook()
+    #以下是儲存進excel
+    
+    sheet = xls.get_sheet_by_name('Sheet') #生成excel的方法
+    x,y = 1,1
+    
+    sheet.cell(row=x,column=y,value='Name')
+    sheet.cell(row=x,column=y+1,value='Labal')
+    
+    
+    x ,y = 2 , 1
+    
+    #判斷全新一列 塞值
+    tmp = 'A'+str(x)
+    while True:
+        if sheet[tmp].value != None:
+            x += 1
+            tmp = 'A'+str(x)
+            #print(ws[tmp].value)
+        else:
+            break
+    
+    for name in dic :
+        if name[0:-4] in checklis :
+            print('this file has been used , Pass!')
+            continue # 此檔案已經存過 略過
+        
+        currentname = name[0:-4]
+        
+        # 判斷狀況
+        if 'NO' in currentname  or 'Missing' in currentname:
+            currentlabel = 'Missing Queen'
+        else:
+            currentlabel = 'Active'
+        
+        # 存進excel格子
+        # 存 名稱 & 狀態
+        y = 1
+        sheet.cell(row=x,column=y,value=currentname)
+        sheet.cell(row=x,column=y+1,value=currentlabel)
+        y = 3
+        # 存 feature
+        
+        for feature in dic[name]:
+            sheet.cell(row=x,column=y,value=feature)
+            y += 1
+        x += 1
+
+    # MFCC特徵數值
+    x , y =  1,3
+    for count in range(1,121):
+        tmps = count
+        sheet.cell(row=x,column=y,value=tmps)
+        y += 1
+    
+    Excelname = 'Name_Label_MFCCfeature.xlsx'
+    xls.save('./MFCC/' + Excelname) 
+    print(Excelname+" have Done")
